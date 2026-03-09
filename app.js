@@ -804,4 +804,7 @@ app.get('/api/users/developers', (req, res) => {
   )
 })
 
-module.exports = app
+const port = process.env.PORT || 4000
+app.listen(port, () => {
+  console.log(`Concept254 API running on port ${port}`)
+})
