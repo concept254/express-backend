@@ -52,7 +52,68 @@ app.use(cors())
 app.use(express.json())
 
 app.get('/', (req, res) => {
-  res.send('Hello World!')
+  res.json({
+    name: 'Concept254 API',
+    version: '1.0.0',
+    status: 'online',
+    timestamp: new Date().toISOString(),
+    author: 'Klaus',
+    github: 'https://github.com/concept254',
+    frontend: 'https://react-frontend-nine-lac.vercel.app',
+    endpoints: {
+      auth: [
+        'POST /api/auth/signin',
+        'POST /api/auth/signup'
+      ],
+      posts: [
+        'GET /api/get/allposts',
+        'GET /api/get/post/:pid',
+        'POST /api/post/createpost',
+        'PUT /api/post/edit/:pid',
+        'DELETE /api/post/delete/:pid'
+      ],
+      tickets: [
+        'GET /api/tickets',
+        'POST /api/tickets/create',
+        'GET /api/tickets/:tid',
+        'PUT /api/tickets/:tid/assign',
+        'PUT /api/tickets/:tid/resolve',
+        'PUT /api/tickets/:tid/close',
+        'DELETE /api/tickets/:tid'
+      ],
+      messages: [
+        'GET /api/tickets/:tid/messages',
+        'POST /api/tickets/:tid/messages'
+      ],
+      attachments: [
+        'GET /api/tickets/:tid/attachments',
+        'POST /api/tickets/:tid/attachments',
+        'DELETE /api/tickets/attachments/:aid'
+      ],
+      notifications: [
+        'GET /api/notifications/:uid',
+        'PUT /api/notifications/:nid/read'
+      ],
+      reviews: [
+        'POST /api/reviews/create',
+        'GET /api/reviews/developer/:uid'
+      ],
+      users: [
+        'GET /api/users/profile/:uid',
+        'PUT /api/users/profile/update',
+        'GET /api/users/developers',
+        'GET /api/users/developer/:uid'
+      ],
+      admin: [
+        'GET /api/admin/stats',
+        'GET /api/admin/users',
+        'PUT /api/admin/users/:uid/role',
+        'DELETE /api/admin/users/:uid',
+        'GET /api/admin/tickets',
+        'DELETE /api/admin/tickets/:tid'
+      ]
+    }
+  })
 })
 
 // ── Auth: Sign In ─────────────────────────────────────
