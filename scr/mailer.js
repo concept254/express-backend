@@ -26,7 +26,7 @@ const sendTicketCreated = async (clientEmail, clientName, ticketTitle) => {
           <p style="margin: 8px 0 0; color: #6b7280; font-size: 14px;">Status: Open</p>
         </div>
         <p>We will notify you as soon as a developer picks up your ticket.</p>
-        <a href="http://localhost:5173/client/dashboard"
+        <a href="${import.meta.env.VITE_API_URL}client/dashboard"
           style="display: inline-block; background: #4f46e5; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; margin-top: 16px;">
           View Dashboard
         </a>
@@ -52,7 +52,7 @@ const sendTicketAssigned = async (clientEmail, clientName, ticketTitle, develope
           <p style="margin: 4px 0 0; color: #6b7280; font-size: 14px;">Status: In Progress</p>
         </div>
         <p>You can message your developer directly through the ticket thread.</p>
-        <a href="http://localhost:5173/client/dashboard"
+        <a href="${import.meta.env.VITE_API_URL}client/dashboard"
           style="display: inline-block; background: #4f46e5; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; margin-top: 16px;">
           View Ticket
         </a>
@@ -77,7 +77,7 @@ const sendTicketResolved = async (clientEmail, clientName, ticketTitle) => {
           <p style="margin: 8px 0 0; color: #6b7280; font-size: 14px;">Status: Resolved</p>
         </div>
         <p>Please review the work and close the ticket if you are satisfied. You will also be able to leave a review for the developer.</p>
-        <a href="http://localhost:5173/client/dashboard"
+        <a href="${import.meta.env.VITE_API_URL}client/dashboard"
           style="display: inline-block; background: #4f46e5; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; margin-top: 16px;">
           Review & Close Ticket
         </a>
@@ -105,7 +105,7 @@ const sendTicketClosed = async (developerEmail, developerName, ticketTitle, budg
           </p>
         </div>
         <p>Thank you for your great work on concept254!</p>
-        <a href="http://localhost:5173/developer/dashboard"
+        <a href="${import.meta.env.VITE_API_URL}developer/dashboard"
           style="display: inline-block; background: #4f46e5; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; margin-top: 16px;">
           View Dashboard
         </a>
