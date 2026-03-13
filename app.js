@@ -8,6 +8,8 @@ const path = require('path')
 const fs = require('fs')
 const bcrypt = require('bcrypt')
 const SALT_ROUNDS = 10
+const crypto = require('crypto')
+const { sendVerificationEmail, sendWelcomeEmail } = require('./mailer')
 
 // Multer storage config
 const storage = multer.diskStorage({
@@ -1302,6 +1304,43 @@ app.get('/api/me/admin/users', async (req, res) => {
   try {
     const result = await pool.query('SELECT id, name, email, role, verified, date_created, last_login FROM me_users ORDER BY date_created DESC')
     res.json(result.rows)
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// Signup with email verification
+app.post('/api/me/auth/signup', async (req, res) => {
+  const { name, email, pwd } = req.body
+  if (!name || !email || !pwd) return res.status(400).json({ error: 'All fields required' })
+  try {
+    const hashed = await bcrypt.hash(pwd, 10)
+    const token = crypto.randomBytes(32).toString('hex')
+    const result = await pool.query(
+      'INSERT INTO me_users (name, email, pwd, verification_token) VALUES ($1, $2, $3, $4) RETURNING id, name, email, role, verified',
+      [name, email, hashed, token]
+    )
+    await sendVerificationEmail(name, email, token)
+    res.json({ message: 'Signup successful! Please check your email to verify your account.' })
+  } catch (err) {
+    if (err.code === '23505') return res.status(400).json({ error: 'Email already registered' })
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// Email verification
+app.get('/api/me/auth/verify', async (req, res) => {
+  const { token } = req.query
+  if (!token) return res.status(400).json({ error: 'Token required' })
+  try {
+    const result = await pool.query(
+      'UPDATE me_users SET verified=true, verification_token=NULL WHERE verification_token=$1 RETURNING id, name, email, role, verified',
+      [token]
+    )
+    if (result.rows.length === 0) return res.status(400).json({ error: 'Invalid or expired token' })
+    const user = result.rows[0]
+    await sendWelcomeEmail(user.name, user.email)
+    res.json({ message: 'Email verified successfully!', user })
   } catch (err) {
     res.status(500).json({ error: err.message })
   }
