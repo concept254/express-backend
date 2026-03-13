@@ -48,7 +48,18 @@ const upload = multer({
 // Serve uploaded files statically
 app.use('/uploads', express.static('uploads'))
 
-app.use(cors())
+app.use(cors({
+  origin: [
+    'http://localhost:5173',
+    'http://localhost:5174',
+    'http://localhost:5175',
+    'https://react-frontend-nine-lac.vercel.app',
+    'https://hub.concept254.net',
+    'https://me.concept254.net',
+  ],
+  credentials: true
+}))
+
 app.use(express.json())
 
 app.get('/', (req, res) => {
