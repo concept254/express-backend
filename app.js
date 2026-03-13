@@ -55,7 +55,9 @@ app.use(cors({
     'http://localhost:5175',
     'https://react-frontend-nine-lac.vercel.app',
     'https://hub.concept254.net',
+    'http://hub.concept254.net',
     'https://me.concept254.net',
+    'http://me.concept254.net',
   ],
   credentials: true
 }))
