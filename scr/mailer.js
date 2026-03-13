@@ -128,7 +128,7 @@ const sendNewMessage = async (recipientEmail, recipientName, ticketTitle, sender
         <div style="background: #f3f4f6; padding: 16px; border-radius: 8px; margin: 20px 0;">
           <p style="margin: 0; font-weight: bold;">🎫 ${ticketTitle}</p>
         </div>
-        <a href="http://localhost:5173"
+        <a href="http://localhost:${import.meta.env.VITE_API_URL}"
           style="display: inline-block; background: #4f46e5; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; margin-top: 16px;">
           View Message
         </a>

@@ -865,6 +865,435 @@ app.get('/api/users/developers', (req, res) => {
   )
 })
 
+// ══════════════════════════════════════════════════════
+// ME.CONCEPT254.NET ROUTES
+// ══════════════════════════════════════════════════════
+
+// About
+app.get('/api/me/about', (req, res) => {
+  pool.query('SELECT * FROM me_about LIMIT 1', (err, result) => {
+    if (err) return res.status(500).json({ error: err.message })
+    res.json(result.rows[0])
+  })
+})
+
+// Skills
+app.get('/api/me/skills', (req, res) => {
+  pool.query('SELECT * FROM me_skills ORDER BY sort_order ASC', (err, result) => {
+    if (err) return res.status(500).json({ error: err.message })
+    res.json(result.rows)
+  })
+})
+
+// Experience
+app.get('/api/me/experience', (req, res) => {
+  pool.query('SELECT * FROM me_experience ORDER BY sort_order ASC', (err, result) => {
+    if (err) return res.status(500).json({ error: err.message })
+    res.json(result.rows)
+  })
+})
+
+// Education
+app.get('/api/me/education', (req, res) => {
+  pool.query('SELECT * FROM me_education ORDER BY sort_order ASC', (err, result) => {
+    if (err) return res.status(500).json({ error: err.message })
+    res.json(result.rows)
+  })
+})
+
+// Projects
+app.get('/api/me/projects', (req, res) => {
+  pool.query('SELECT * FROM me_projects ORDER BY featured DESC, sort_order ASC', (err, result) => {
+    if (err) return res.status(500).json({ error: err.message })
+    res.json(result.rows)
+  })
+})
+
+// Certifications
+app.get('/api/me/certifications', (req, res) => {
+  pool.query('SELECT * FROM me_certifications ORDER BY sort_order ASC', (err, result) => {
+    if (err) return res.status(500).json({ error: err.message })
+    res.json(result.rows)
+  })
+})
+
+// Blog posts — public published only
+app.get('/api/me/blog', (req, res) => {
+  pool.query(
+    'SELECT id, title, slug, excerpt, category, tags, featured_image, views, date_created FROM me_blog_posts WHERE published=true ORDER BY date_created DESC',
+    (err, result) => {
+      if (err) return res.status(500).json({ error: err.message })
+      res.json(result.rows)
+    }
+  )
+})
+
+// Single blog post by slug
+app.get('/api/me/blog/:slug', async (req, res) => {
+  const { slug } = req.params
+  try {
+    await pool.query('UPDATE me_blog_posts SET views = views + 1 WHERE slug=$1 AND published=true', [slug])
+    const result = await pool.query('SELECT * FROM me_blog_posts WHERE slug=$1 AND published=true', [slug])
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Post not found' })
+    res.json(result.rows[0])
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// Testimonials — approved only
+app.get('/api/me/testimonials', (req, res) => {
+  pool.query(
+    'SELECT * FROM me_testimonials WHERE approved=true AND verified_only=false ORDER BY date_created DESC',
+    (err, result) => {
+      if (err) return res.status(500).json({ error: err.message })
+      res.json(result.rows)
+    }
+  )
+})
+
+// Contact form submission
+app.post('/api/me/contact', (req, res) => {
+  const { name, email, subject, message } = req.body
+  pool.query(
+    'INSERT INTO me_contacts (name, email, subject, message) VALUES ($1, $2, $3, $4) RETURNING *',
+    [name, email, subject, message],
+    (err, result) => {
+      if (err) return res.status(500).json({ error: err.message })
+      res.json(result.rows[0])
+    }
+  )
+})
+
+// Newsletter signup
+app.post('/api/me/newsletter', (req, res) => {
+  const { email } = req.body
+  pool.query(
+    'INSERT INTO me_newsletter (email) VALUES ($1) ON CONFLICT (email) DO UPDATE SET subscribed=true RETURNING *',
+    [email],
+    (err, result) => {
+      if (err) return res.status(500).json({ error: err.message })
+      res.json(result.rows[0])
+    }
+  )
+})
+
+// ══════════════════════════════════════════════════════
+// ME AUTH ROUTES
+// ══════════════════════════════════════════════════════
+
+app.post('/api/me/auth/signup', async (req, res) => {
+  const { name, email, pwd } = req.body
+  if (!name || !email || !pwd) return res.status(400).json({ error: 'All fields required' })
+  try {
+    const hashed = await bcrypt.hash(pwd, 10)
+    const result = await pool.query(
+      'INSERT INTO me_users (name, email, pwd) VALUES ($1, $2, $3) RETURNING id, name, email, role, verified',
+      [name, email, hashed]
+    )
+    res.json(result.rows[0])
+  } catch (err) {
+    if (err.code === '23505') return res.status(400).json({ error: 'Email already registered' })
+    res.status(500).json({ error: err.message })
+  }
+})
+
+app.post('/api/me/auth/signin', async (req, res) => {
+  const { email, pwd } = req.body
+  if (!email || !pwd) return res.status(400).json({ error: 'All fields required' })
+  try {
+    const result = await pool.query('SELECT * FROM me_users WHERE email=$1', [email])
+    if (result.rows.length === 0) return res.status(401).json({ error: 'Invalid credentials' })
+    const user = result.rows[0]
+    const match = await bcrypt.compare(pwd, user.pwd)
+    if (!match) return res.status(401).json({ error: 'Invalid credentials' })
+    await pool.query('UPDATE me_users SET last_login=NOW() WHERE id=$1', [user.id])
+    res.json({ id: user.id, name: user.name, email: user.email, role: user.role, verified: user.verified })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// ══════════════════════════════════════════════════════
+// ME ADMIN ROUTES
+// ══════════════════════════════════════════════════════
+
+// About
+app.put('/api/me/admin/about', async (req, res) => {
+  const { name, title, bio, tagline, location, email, phone, github, linkedin, website, avatar_url, available } = req.body
+  try {
+    const result = await pool.query(
+      `UPDATE me_about SET name=$1, title=$2, bio=$3, tagline=$4, location=$5, email=$6,
+       phone=$7, github=$8, linkedin=$9, website=$10, avatar_url=$11, available=$12, date_updated=NOW()
+       WHERE id=1 RETURNING *`,
+      [name, title, bio, tagline, location, email, phone, github, linkedin, website, avatar_url, available]
+    )
+    res.json(result.rows[0])
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// Skills CRUD
+app.post('/api/me/admin/skills', async (req, res) => {
+  const { name, category, level, icon, sort_order } = req.body
+  try {
+    const result = await pool.query(
+      'INSERT INTO me_skills (name, category, level, icon, sort_order) VALUES ($1,$2,$3,$4,$5) RETURNING *',
+      [name, category, level, icon, sort_order || 0]
+    )
+    res.json(result.rows[0])
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+app.put('/api/me/admin/skills/:id', async (req, res) => {
+  const { name, category, level, icon, sort_order } = req.body
+  try {
+    const result = await pool.query(
+      'UPDATE me_skills SET name=$1, category=$2, level=$3, icon=$4, sort_order=$5 WHERE id=$6 RETURNING *',
+      [name, category, level, icon, sort_order, req.params.id]
+    )
+    res.json(result.rows[0])
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+app.delete('/api/me/admin/skills/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM me_skills WHERE id=$1', [req.params.id])
+    res.json({ success: true })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// Experience CRUD
+app.post('/api/me/admin/experience', async (req, res) => {
+  const { company, role, description, start_date, end_date, current, location, sort_order } = req.body
+  try {
+    const result = await pool.query(
+      'INSERT INTO me_experience (company, role, description, start_date, end_date, current, location, sort_order) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *',
+      [company, role, description, start_date, end_date, current || false, location, sort_order || 0]
+    )
+    res.json(result.rows[0])
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+app.put('/api/me/admin/experience/:id', async (req, res) => {
+  const { company, role, description, start_date, end_date, current, location, sort_order } = req.body
+  try {
+    const result = await pool.query(
+      'UPDATE me_experience SET company=$1, role=$2, description=$3, start_date=$4, end_date=$5, current=$6, location=$7, sort_order=$8 WHERE id=$9 RETURNING *',
+      [company, role, description, start_date, end_date, current, location, sort_order, req.params.id]
+    )
+    res.json(result.rows[0])
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+app.delete('/api/me/admin/experience/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM me_experience WHERE id=$1', [req.params.id])
+    res.json({ success: true })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// Education CRUD
+app.post('/api/me/admin/education', async (req, res) => {
+  const { institution, qualification, field, start_date, end_date, current, description, sort_order } = req.body
+  try {
+    const result = await pool.query(
+      'INSERT INTO me_education (institution, qualification, field, start_date, end_date, current, description, sort_order) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *',
+      [institution, qualification, field, start_date, end_date, current || false, description, sort_order || 0]
+    )
+    res.json(result.rows[0])
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+app.put('/api/me/admin/education/:id', async (req, res) => {
+  const { institution, qualification, field, start_date, end_date, current, description, sort_order } = req.body
+  try {
+    const result = await pool.query(
+      'UPDATE me_education SET institution=$1, qualification=$2, field=$3, start_date=$4, end_date=$5, current=$6, description=$7, sort_order=$8 WHERE id=$9 RETURNING *',
+      [institution, qualification, field, start_date, end_date, current, description, sort_order, req.params.id]
+    )
+    res.json(result.rows[0])
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+app.delete('/api/me/admin/education/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM me_education WHERE id=$1', [req.params.id])
+    res.json({ success: true })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// Projects CRUD
+app.post('/api/me/admin/projects', async (req, res) => {
+  const { title, description, tech, url, github_url, image_url, featured, sort_order } = req.body
+  try {
+    const result = await pool.query(
+      'INSERT INTO me_projects (title, description, tech, url, github_url, image_url, featured, sort_order) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *',
+      [title, description, tech, url, github_url, image_url, featured || false, sort_order || 0]
+    )
+    res.json(result.rows[0])
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+app.put('/api/me/admin/projects/:id', async (req, res) => {
+  const { title, description, tech, url, github_url, image_url, featured, sort_order } = req.body
+  try {
+    const result = await pool.query(
+      'UPDATE me_projects SET title=$1, description=$2, tech=$3, url=$4, github_url=$5, image_url=$6, featured=$7, sort_order=$8 WHERE id=$9 RETURNING *',
+      [title, description, tech, url, github_url, image_url, featured, sort_order, req.params.id]
+    )
+    res.json(result.rows[0])
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+app.delete('/api/me/admin/projects/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM me_projects WHERE id=$1', [req.params.id])
+    res.json({ success: true })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// Blog CRUD
+app.post('/api/me/admin/blog', async (req, res) => {
+  const { title, slug, body, excerpt, category, tags, featured_image, published } = req.body
+  try {
+    const result = await pool.query(
+      'INSERT INTO me_blog_posts (title, slug, body, excerpt, category, tags, featured_image, published) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *',
+      [title, slug, body, excerpt, category, tags, featured_image, published || false]
+    )
+    res.json(result.rows[0])
+  } catch (err) {
+    if (err.code === '23505') return res.status(400).json({ error: 'Slug already exists' })
+    res.status(500).json({ error: err.message })
+  }
+})
+
+app.put('/api/me/admin/blog/:id', async (req, res) => {
+  const { title, slug, body, excerpt, category, tags, featured_image, published } = req.body
+  try {
+    const result = await pool.query(
+      `UPDATE me_blog_posts SET title=$1, slug=$2, body=$3, excerpt=$4, category=$5,
+       tags=$6, featured_image=$7, published=$8, date_updated=NOW() WHERE id=$9 RETURNING *`,
+      [title, slug, body, excerpt, category, tags, featured_image, published, req.params.id]
+    )
+    res.json(result.rows[0])
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+app.delete('/api/me/admin/blog/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM me_blog_posts WHERE id=$1', [req.params.id])
+    res.json({ success: true })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// Admin — get all blog posts including unpublished
+app.get('/api/me/admin/blog', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM me_blog_posts ORDER BY date_created DESC')
+    res.json(result.rows)
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// Contacts — view all
+app.get('/api/me/admin/contacts', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM me_contacts ORDER BY date_created DESC')
+    res.json(result.rows)
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+app.put('/api/me/admin/contacts/:id/read', async (req, res) => {
+  try {
+    await pool.query('UPDATE me_contacts SET is_read=true WHERE id=$1', [req.params.id])
+    res.json({ success: true })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// Testimonials — approve/delete
+app.get('/api/me/admin/testimonials', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM me_testimonials ORDER BY date_created DESC')
+    res.json(result.rows)
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+app.put('/api/me/admin/testimonials/:id', async (req, res) => {
+  const { approved } = req.body
+  try {
+    const result = await pool.query('UPDATE me_testimonials SET approved=$1 WHERE id=$2 RETURNING *', [approved, req.params.id])
+    res.json(result.rows[0])
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+app.delete('/api/me/admin/testimonials/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM me_testimonials WHERE id=$1', [req.params.id])
+    res.json({ success: true })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// Newsletter subscribers
+app.get('/api/me/admin/newsletter', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM me_newsletter ORDER BY date_created DESC')
+    res.json(result.rows)
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// Users
+app.get('/api/me/admin/users', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT id, name, email, role, verified, date_created, last_login FROM me_users ORDER BY date_created DESC')
+    res.json(result.rows)
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
 const port = process.env.PORT || 4000
 app.listen(port, () => {
   console.log(`Concept254 API running on port ${port}`)
